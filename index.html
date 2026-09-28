@@ -1,0 +1,399 @@
+<!DOCTYPE html>
+<html lang="cs">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Autobusová doprava – přehled</title>
+<style>
+  :root {
+    --bg: #eef1f4;
+    --panel: #ffffff;
+    --ink: #14202b;
+    --muted: #5d6b78;
+    --line: #d3dae1;
+    --side: #0f2a43;
+    --side-ink: #dbe6f0;
+    --side-active: #ffc82e;
+    --accent: #0f5fa8;
+    --ok: #1f8a4c;
+    --wait: #b26a00;
+    --game: #6b3fa0;
+    --radius: 6px;
+    --side-w: 260px;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #0d1620;
+      --panel: #16232f;
+      --ink: #e6edf3;
+      --muted: #93a3b1;
+      --line: #263746;
+      --side: #08111a;
+      --accent: #5ea7ea;
+      --ok: #4cc07f;
+      --wait: #e8a13a;
+      --game: #b48ae6;
+    }
+  }
+  * { box-sizing: border-box; }
+  html, body { height: 100%; margin: 0; }
+  body {
+    font-family: "Barlow", "Segoe UI", system-ui, -apple-system, Roboto, Arial, sans-serif;
+    background: var(--bg);
+    color: var(--ink);
+    line-height: 1.5;
+  }
+  button { font: inherit; color: inherit; cursor: pointer; }
+  :focus-visible { outline: 3px solid var(--side-active); outline-offset: 2px; }
+
+  /* Rozložení */
+  .app { display: flex; height: 100%; }
+
+  .sidebar {
+    width: var(--side-w);
+    flex-shrink: 0;
+    background: var(--side);
+    color: var(--side-ink);
+    display: flex;
+    flex-direction: column;
+    transition: margin-left .25s ease;
+    z-index: 20;
+  }
+  .app.closed .sidebar { margin-left: calc(var(--side-w) * -1); }
+
+  .brand {
+    padding: 22px 20px 18px;
+    border-bottom: 1px solid rgba(255,255,255,.12);
+  }
+  .brand strong { display: block; font-size: 1.25rem; letter-spacing: .01em; color: #fff; }
+  .brand span { font-size: .85rem; color: #9fb4c6; }
+
+  .nav { list-style: none; margin: 0; padding: 12px 10px; flex: 1; }
+  .nav button {
+    width: 100%;
+    display: flex; align-items: center; gap: 12px;
+    padding: 11px 12px;
+    background: none; border: 0; border-radius: var(--radius);
+    text-align: left; font-size: 1.05rem;
+    color: var(--side-ink);
+  }
+  .nav button:hover { background: rgba(255,255,255,.08); }
+  .nav button[aria-current="page"] {
+    background: rgba(255,200,46,.14);
+    color: #fff;
+    box-shadow: inset 4px 0 0 var(--side-active);
+  }
+  .nav svg { width: 22px; height: 22px; flex-shrink: 0; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+  .nav .count { margin-left: auto; font-size: .8rem; color: #9fb4c6; }
+
+  .side-note { padding: 14px 20px 18px; font-size: .8rem; color: #9fb4c6; border-top: 1px solid rgba(255,255,255,.12); }
+
+  .main { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+
+  .topbar {
+    display: flex; align-items: center; gap: 14px;
+    padding: 10px 16px;
+    background: var(--panel);
+    border-bottom: 1px solid var(--line);
+  }
+  .toggle {
+    width: 42px; height: 42px;
+    display: grid; place-items: center;
+    background: var(--bg); border: 1px solid var(--line); border-radius: var(--radius);
+  }
+  .toggle svg { width: 22px; height: 22px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; }
+  .topbar h1 { font-size: 1.2rem; margin: 0; }
+
+  .content { flex: 1; overflow-y: auto; padding: 28px clamp(16px, 4vw, 48px) 60px; }
+  .page { max-width: 860px; }
+  .page > h2 { font-size: 1.7rem; margin: 0 0 4px; }
+  .page > .lead { color: var(--muted); margin: 0 0 24px; }
+
+  /* Vozy */
+  .group { margin-bottom: 26px; }
+  .group-head {
+    display: flex; align-items: center; gap: 10px;
+    margin-bottom: 10px;
+    font-size: 1.05rem; font-weight: 700;
+  }
+  .dot { width: 12px; height: 12px; border-radius: 50%; background: var(--c); }
+  .group-head small { font-weight: 400; color: var(--muted); }
+  .group[data-kind="wait"] { --c: var(--wait); }
+  .group[data-kind="ok"] { --c: var(--ok); }
+  .group[data-kind="game"] { --c: var(--game); }
+
+  .vehicles { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 8px; }
+  .vehicles li {
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-left: 5px solid var(--c);
+    border-radius: var(--radius);
+    padding: 10px 14px;
+    font-weight: 600;
+  }
+  .empty { color: var(--muted); font-style: italic; padding: 10px 14px; background: var(--panel); border: 1px dashed var(--line); border-radius: var(--radius); }
+
+  /* Linky */
+  .lines { list-style: none; margin: 0; padding: 0; display: grid; gap: 10px; }
+  .lines li {
+    display: flex; gap: 16px; align-items: center;
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    padding: 12px 16px;
+  }
+  .badge {
+    flex-shrink: 0;
+    min-width: 66px; text-align: center;
+    background: var(--accent); color: #fff;
+    font-weight: 800; font-size: 1.35rem;
+    padding: 6px 10px; border-radius: 5px;
+    font-variant-numeric: tabular-nums;
+  }
+  .route { font-weight: 600; }
+  .route .arrow { color: var(--muted); margin: 0 .35em; }
+  .route-note { display: block; font-weight: 400; font-size: .9rem; color: var(--muted); margin-top: 2px; }
+
+  /* Mapa */
+  .map-frame { background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius); padding: 10px; }
+  .map-frame img { display: block; max-width: 100%; height: auto; margin: 0 auto; border-radius: 3px; }
+  .map-missing { padding: 40px 20px; text-align: center; color: var(--muted); }
+  .map-missing code { background: var(--bg); padding: 2px 6px; border-radius: 4px; color: var(--ink); }
+  .hidden { display: none !important; }
+
+  /* Odkazy */
+  .links { list-style: none; margin: 0 0 24px; padding: 0; display: grid; gap: 10px; }
+  .links a {
+    display: flex; align-items: center; gap: 14px;
+    background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius);
+    padding: 14px 16px; text-decoration: none; color: var(--ink);
+  }
+  .links a:hover { border-color: var(--accent); }
+  .links .ico { width: 40px; height: 40px; border-radius: 8px; background: #5865f2; display: grid; place-items: center; }
+  .links .ico svg { width: 24px; height: 24px; fill: #fff; }
+  .links b { display: block; }
+  .links span { color: var(--muted); font-size: .9rem; word-break: break-all; }
+
+  .info-box {
+    background: var(--panel); border: 1px solid var(--line);
+    border-left: 5px solid var(--side-active);
+    border-radius: var(--radius); padding: 14px 16px;
+  }
+  .info-box b { display: block; margin-bottom: 2px; }
+
+  /* Mobil */
+  .scrim { display: none; }
+  @media (max-width: 760px) {
+    .sidebar { position: fixed; top: 0; bottom: 0; left: 0; box-shadow: 4px 0 24px rgba(0,0,0,.35); }
+    .app:not(.closed) .scrim {
+      display: block; position: fixed; inset: 0; background: rgba(0,0,0,.4); z-index: 10;
+    }
+    .lines li { align-items: flex-start; }
+  }
+  @media (prefers-reduced-motion: reduce) { .sidebar { transition: none; } }
+</style>
+</head>
+<body>
+<div class="app" id="app">
+
+  <aside class="sidebar" id="sidebar" aria-label="Hlavní menu">
+    <div class="brand">
+      <strong>Autobusová doprava</strong>
+      <span>Slaný – Praha</span>
+    </div>
+    <ul class="nav" id="nav"></ul>
+    <div class="side-note">Hra je fiktivní / polofiktivní.</div>
+  </aside>
+  <div class="scrim" id="scrim"></div>
+
+  <div class="main">
+    <header class="topbar">
+      <button class="toggle" id="toggle" aria-label="Zavřít nebo otevřít menu" aria-controls="sidebar" aria-expanded="true">
+        <svg viewBox="0 0 24 24"><path d="M4 6h16M4 12h16M4 18h16"/></svg>
+      </button>
+      <h1 id="title">Vozy</h1>
+    </header>
+    <main class="content" id="content" tabindex="-1"></main>
+  </div>
+</div>
+
+<script>
+/* ============ DATA – sem upravuj obsah ============ */
+
+const VOZY = {
+  nedostupne: ["Iveco Crossway 12 LE"],
+  dostupne: [
+    "SOR CN12", "SOR NB12", "SOR NS12",
+    "Irisbus Citelis 12", "Irisbus Citelis 18",
+    "SOR TNS12", "Škoda 30tr", "Setra", "SOR C12"
+  ],
+  vHre: [] // zatím žádný
+};
+
+const LINKY = [
+  { cislo: "123", z: "Na Knížecí", do: "Šmukýřka" },
+  { cislo: "772", z: "Na Knížecí", do: "Smíchovské nádraží" },
+  { cislo: "773", z: "Šmukýřka", do: "Slaný, Aut. nádr." },
+  { cislo: "774", z: "Slaný, Pražská", do: "Slaný, ČSAD" },
+  { cislo: "775", z: "Slaný, ČSAD", do: "Slaný, Šultysova",
+    pozn: "Dále jako linka 776 směr Žižice, Drnov" },
+  { cislo: "776", z: "Slaný, Aut. nádr.", do: "Žižice, Drnov" }
+];
+
+/* Mapa: nahraj soubor mapa.png do stejné složky jako index.html */
+const MAPA = "mapa.png";
+
+const ODKAZY = [
+  { nazev: "Discord", url: "https://discord.gg/evRCrDcwSc" }
+];
+
+/* ============ APLIKACE ============ */
+
+const ICONS = {
+  vozy:   '<svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="13" rx="2"/><path d="M3 11h18M7 20v-3M17 20v-3"/><circle cx="7.5" cy="14" r=".6"/><circle cx="16.5" cy="14" r=".6"/></svg>',
+  linky:  '<svg viewBox="0 0 24 24"><circle cx="6" cy="6" r="2.5"/><circle cx="18" cy="18" r="2.5"/><path d="M8.5 6H15a3 3 0 0 1 0 6H9a3 3 0 0 0 0 6h6.5"/></svg>',
+  mapa:   '<svg viewBox="0 0 24 24"><path d="M9 4 3 6v14l6-2 6 2 6-2V4l-6 2-6-2zM9 4v14M15 6v14"/></svg>',
+  odkazy: '<svg viewBox="0 0 24 24"><path d="M10 14a4 4 0 0 0 5.7 0l3-3a4 4 0 0 0-5.7-5.7l-1 1M14 10a4 4 0 0 0-5.7 0l-3 3a4 4 0 0 0 5.7 5.7l1-1"/></svg>'
+};
+const DISCORD = '<svg viewBox="0 0 24 24"><path d="M5 5h14a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2h-6l-4 3v-3H5a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2z"/></svg>';
+
+const PAGES = {
+  vozy:   { title: "Vozy",   icon: ICONS.vozy,   count: () => VOZY.nedostupne.length + VOZY.dostupne.length + VOZY.vHre.length, render: renderVozy },
+  linky:  { title: "Linky",  icon: ICONS.linky,  count: () => LINKY.length, render: renderLinky },
+  mapa:   { title: "Mapa",   icon: ICONS.mapa,   render: renderMapa },
+  odkazy: { title: "Odkazy", icon: ICONS.odkazy, render: renderOdkazy }
+};
+
+const $ = (s) => document.querySelector(s);
+const app = $("#app"), nav = $("#nav"), content = $("#content"), toggle = $("#toggle");
+
+function el(tag, cls, text) {
+  const e = document.createElement(tag);
+  if (cls) e.className = cls;
+  if (text != null) e.textContent = text;
+  return e;
+}
+
+/* --- Vozy --- */
+function vehicleGroup(kind, label, items, emptyText) {
+  const g = el("section", "group");
+  g.dataset.kind = kind;
+  const head = el("div", "group-head");
+  head.append(el("span", "dot"), el("span", null, label), el("small", null, "(" + items.length + ")"));
+  g.append(head);
+  if (!items.length) {
+    g.append(el("div", "empty", emptyText));
+  } else {
+    const ul = el("ul", "vehicles");
+    items.forEach((v) => ul.append(el("li", null, v)));
+    g.append(ul);
+  }
+  return g;
+}
+function renderVozy(root) {
+  root.append(
+    vehicleGroup("wait", "Zatím nedostupné", VOZY.nedostupne, "Žádný vůz."),
+    vehicleGroup("ok", "Dostupné", VOZY.dostupne, "Žádný vůz."),
+    vehicleGroup("game", "Ve hře", VOZY.vHre, "Žádný vůz ve hře.")
+  );
+}
+
+/* --- Linky --- */
+function renderLinky(root) {
+  const ul = el("ul", "lines");
+  LINKY.forEach((l) => {
+    const li = el("li");
+    const r = el("div", "route");
+    r.append(document.createTextNode(l.z), el("span", "arrow", "–"), document.createTextNode(l.do));
+    if (l.pozn) r.append(el("span", "route-note", l.pozn));
+    li.append(el("div", "badge", l.cislo), r);
+    ul.append(li);
+  });
+  root.append(ul);
+}
+
+/* --- Mapa --- */
+function renderMapa(root) {
+  const frame = el("div", "map-frame");
+  const img = new Image();
+  img.alt = "Mapa linek";
+  img.src = MAPA;
+  const missing = el("div", "map-missing hidden");
+  missing.innerHTML = "Mapa se nenačetla.<br>Nahraj soubor <code></code> do stejné složky jako <code>index.html</code>.";
+  missing.querySelector("code").textContent = MAPA;
+  img.onerror = () => { img.classList.add("hidden"); missing.classList.remove("hidden"); };
+  frame.append(img, missing);
+  root.append(frame);
+}
+
+/* --- Odkazy --- */
+function renderOdkazy(root) {
+  const ul = el("ul", "links");
+  ODKAZY.forEach((o) => {
+    const li = el("li");
+    const a = el("a");
+    a.href = o.url; a.target = "_blank"; a.rel = "noopener noreferrer";
+    const ico = el("span", "ico"); ico.innerHTML = DISCORD;
+    const t = el("div"); t.append(el("b", null, o.nazev), el("span", null, o.url));
+    a.append(ico, t);
+    li.append(a); ul.append(li);
+  });
+  const info = el("div", "info-box");
+  info.append(el("b", null, "Info"), document.createTextNode("Hra je fiktivní / polofiktivní."));
+  root.append(ul, info);
+}
+
+/* --- Navigace --- */
+function buildNav() {
+  Object.entries(PAGES).forEach(([id, p]) => {
+    const li = el("li");
+    const b = el("button");
+    b.dataset.page = id;
+    b.innerHTML = p.icon;
+    b.append(el("span", null, p.title));
+    if (p.count) b.append(el("span", "count", String(p.count())));
+    b.addEventListener("click", () => {
+      location.hash = id;
+      if (window.innerWidth <= 760) setOpen(false);
+    });
+    li.append(b); nav.append(li);
+  });
+}
+
+function show(id) {
+  const p = PAGES[id] || PAGES.vozy;
+  id = PAGES[id] ? id : "vozy";
+  nav.querySelectorAll("button").forEach((b) => {
+    if (b.dataset.page === id) b.setAttribute("aria-current", "page");
+    else b.removeAttribute("aria-current");
+  });
+  $("#title").textContent = p.title;
+  document.title = p.title + " – Autobusová doprava";
+  content.replaceChildren();
+  const page = el("div", "page");
+  page.append(el("h2", null, p.title));
+  p.render(page);
+  content.append(page);
+  content.scrollTop = 0;
+}
+
+/* --- Sidebar --- */
+function setOpen(open) {
+  app.classList.toggle("closed", !open);
+  toggle.setAttribute("aria-expanded", String(open));
+  try { localStorage.setItem("sidebarOpen", open ? "1" : "0"); } catch (e) {}
+}
+toggle.addEventListener("click", () => setOpen(app.classList.contains("closed")));
+$("#scrim").addEventListener("click", () => setOpen(false));
+document.addEventListener("keydown", (e) => { if (e.key === "Escape" && window.innerWidth <= 760) setOpen(false); });
+
+/* --- Start --- */
+buildNav();
+let saved = null;
+try { saved = localStorage.getItem("sidebarOpen"); } catch (e) {}
+setOpen(window.innerWidth <= 760 ? false : saved !== "0");
+window.addEventListener("hashchange", () => show(location.hash.slice(1)));
+show(location.hash.slice(1));
+</script>
+</body>
+</html>
